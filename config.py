@@ -18,7 +18,7 @@ SPK_WS_PIN = 12      # I2S WS引脚
 SPK_SD_PIN = 10       # I2S SD引脚
 
 
-# 替换为你的 ChatGLM Token
+# 替换为你的火山引擎语音对话智能体 Token https://www.volcengine.com/docs/6893/1362929#view-key
 VOICE_ID = "zh_female_tianmeiyueyue_moon_bigtts"
 API_KEY = "sk-xxx"
 WS_URL =  "wss://ai-gateway.vei.volces.com/v1/realtime?model=AG-voice-chat-agent"
