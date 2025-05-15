@@ -47,7 +47,10 @@
 3. 上传项目文件到ESP32-S3
 4. 重启开发板，程序将自动连接WiFi并启动语音助手
 5. 接线图：
-   https://github.com/zhou19830318/doubao_ai_agent_esp32/blob/main/73407e1991b048eaa693056efd09bb12.png
+<div align="center">
+  <img src="https://github.com/zhou19830318/doubao_ai_agent_esp32/blob/main/73407e1991b048eaa693056efd09bb12.png">
+</div>
+   
 
 ## 配置说明
 
