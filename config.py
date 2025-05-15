@@ -20,7 +20,7 @@ SPK_SD_PIN = 10       # I2S SD引脚
 
 # 替换为你的 ChatGLM Token
 VOICE_ID = "zh_female_tianmeiyueyue_moon_bigtts"
-API_KEY = "sk-42e9014d7843427196a6cf5f5ba00d4238uq0yfdxbq9ithe"
+API_KEY = "sk-xxx"
 WS_URL =  "wss://ai-gateway.vei.volces.com/v1/realtime?model=AG-voice-chat-agent"
 HEADERS = {
         "Authorization": f"Bearer {API_KEY}"
