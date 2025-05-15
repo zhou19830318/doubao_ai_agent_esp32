@@ -48,7 +48,11 @@
 4. 重启开发板，程序将自动连接WiFi并启动语音助手
 5. 接线图：
 <div align="center">
-  <img src="https://github.com/zhou19830318/doubao_ai_agent_esp32/blob/main/73407e1991b048eaa693056efd09bb12.png">
+  <img src="https://github.com/zhou19830318/doubao_ai_agent_esp32/blob/main/1.png">
+</div>
+6. 运行截图：
+<div align="center">
+  <img src="https://github.com/zhou19830318/doubao_ai_agent_esp32/blob/main/2.png">
 </div>
    
 
