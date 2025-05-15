@@ -69,7 +69,7 @@
 ## 项目结构
 
 - `main_ai.py`: 主程序入口，负责WiFi连接和启动聊天客户端
-- `GLM_chat.py`: 实现WebSocket客户端和音频处理的核心代码
+- `doubao_chat.py`: 实现WebSocket客户端和音频处理的核心代码
 - `config.py`: 配置参数和API密钥
 - `boot.py`: MicroPython启动脚本
 - `aiohttp/`: 包含WebSocket客户端实现的自定义库
@@ -85,7 +85,7 @@
 ## 注意事项
 
 - 确保WiFi网络稳定，以获得最佳的语音交互体验
-- 调整`GLM_chat.py`中的`SILENCE_THRESHOLD`参数可以优化VAD检测灵敏度
+- 调整`doubao_chat.py`中的`SILENCE_THRESHOLD`参数可以优化VAD检测灵敏度
 - API密钥请保密，不要泄露到公开场合
 
 
