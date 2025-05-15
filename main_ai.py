@@ -1,5 +1,5 @@
 import asyncio
-from GLM_chat import chat_client
+from doubao_chat import chat_client
 from config import WIFI_SSID, WIFI_PASSWORD
 
 
