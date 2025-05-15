@@ -1,5 +1,5 @@
-WIFI_SSID = "Prefoco"               # 替换为你的 Wi-Fi 名称
-WIFI_PASSWORD = "18961210318"         # 替换为你的 Wi-Fi 密码
+WIFI_SSID = "xxx"               # 替换为你的 Wi-Fi 名称
+WIFI_PASSWORD = "xxx"         # 替换为你的 Wi-Fi 密码
 
 # 音频配置参数
 CHUNK = 1024      # 数据块大小
