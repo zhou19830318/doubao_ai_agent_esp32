@@ -13,7 +13,8 @@ from collections import deque
 from config import (WIFI_SSID, WIFI_PASSWORD, CHUNK, RATE, CHANNELS, BIT_DEPTH,
                     MIC_SCK_PIN, MIC_WS_PIN, MIC_SD_PIN,
                     SPK_SCK_PIN, SPK_WS_PIN, SPK_SD_PIN,
-                    API_KEY, WS_URL, HEADERS, VOICE_ID) # 确保 VOICE_ID 已导入
+                    API_KEY, WS_URL, HEADERS, VOICE_ID,
+                    instructions) # 确保 VOICE_ID 已导入
 # 假设 aiohttp 库位于同一目录或 sys.path 中
 from aiohttp import ClientSession, WSMsgType
 
@@ -382,7 +383,7 @@ async def handle_message(ws, data):
                 "type": "session.update",
                 "session": {
                     "modalities": ["audio"],
-                    "instructions": "你的名字叫豆包，你是一个智能助手，你的回答要尽量简短。",
+                    "instructions": instructions,
                     "voice": VOICE_ID,
                     "input_audio_format": "pcm16",
                     "output_audio_format": "pcm16",
