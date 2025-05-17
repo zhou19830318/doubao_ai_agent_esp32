@@ -18,7 +18,7 @@ SPK_WS_PIN = 13      # I2S WS引脚
 SPK_SD_PIN = 11       # I2S SD引脚
 
 
-# 替换为你的 ChatGLM Token
+# 替换为你的 doubao语音智能体的 Token https://www.volcengine.com/docs/6893/1389041#conversation-item-create
 VOICE_ID = "zh_female_tianmeixiaoyuan_moon_bigtts"
 API_KEY = "xxx"
 WS_URL =  "wss://ai-gateway.vei.volces.com/v1/realtime?model=AG-voice-chat-agent"
