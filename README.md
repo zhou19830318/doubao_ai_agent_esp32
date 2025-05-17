@@ -82,6 +82,7 @@
 - WebSocket异步通信
 - VAD语音活动检测
 - 多线程音频录制和播放
+- websocket通讯协议：https://www.volcengine.com/docs/6893/1389041#conversation-item-create
 
 ## 注意事项
 
