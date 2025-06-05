@@ -8,6 +8,8 @@ import sys
 import gc  # 引入垃圾回收模块
 from machine import I2S, Pin
 from collections import deque
+import mix_display
+import gc9a01  # Added import for gc9a01
 
 # 导入自定义库和配置
 from config import (WIFI_SSID, WIFI_PASSWORD, CHUNK, RATE, CHANNELS, BIT_DEPTH,
@@ -32,6 +34,16 @@ waiting_start_time = 0  # 开始等待response.created的时间戳
 
 # 事件ID计数器
 event_id_counter = 0
+
+#显示模块代码
+display = mix_display.CircularTextDisplay(debug=1)
+def display_text(text):
+    display.display_text(
+    text=text,
+    color=gc9a01.YELLOW,
+    bg_color=gc9a01.BLUE,
+    char_delay=0.005
+    )
 
 # --- 工具函数 ---
 def get_event_id():
@@ -146,7 +158,7 @@ def audio_recording_thread(ws_obj):
         return
 
     audio_buffer = bytearray(CHUNK)
-    MIN_VALID_SPEECH_DURATION_S = 0.4  # Minimum duration of speech (e.g., 400ms) to be considered valid
+    MIN_VALID_SPEECH_DURATION_S = 0.1  # Minimum duration of speech (e.g., 400ms) to be considered valid
     POST_SPEECH_SILENCE_THRESHOLD_S = 1.5 # Must be silent for this long after speech to commit
     SILENCE_THRESHOLD = 80  # 静音阈值 (需要根据实际环境调整)
 
@@ -382,7 +394,7 @@ async def handle_message(ws, data):
             session_config = {
                 "type": "session.update",
                 "session": {
-                    "modalities": ["audio"],
+                    "modalities": ["text","audio"],
                     "instructions": instructions,
                     "voice": VOICE_ID,
                     "input_audio_format": "pcm16",
@@ -466,7 +478,7 @@ async def handle_message(ws, data):
             response_create_msg = {
                 "type": "response.create",
                 "response": {
-                    "modalities": ["audio"],
+                    "modalities": ["text","audio"],
                     "voice": VOICE_ID
                 }
             }
@@ -491,6 +503,9 @@ async def handle_message(ws, data):
         elif event_type == 'response.audio_transcript.done':
             final_text = data.get('transcript')
             print(f"✅ 文本响应完成: {final_text}")
+            # 显示文本
+            display.clear_screen()
+            display_text(final_text)
             gc.collect()  # 文本响应完成后清理内存
 
         elif event_type == 'response.created':
