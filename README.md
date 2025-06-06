@@ -1,6 +1,6 @@
 # 演示效果
 <div align="center">
-  <img src="https://github.com/zhou19830318/doubao_ai_agent_esp32/blob/main/ezgif-2649f8a19783ea.gif">
+  <img src="https://github.com/zhou19830318/doubao_ai_agent_esp32/blob/main/ezgif-257beaf8d11884.gif">
 </div>
 
 # 更新日志：
