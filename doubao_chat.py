@@ -37,13 +37,17 @@ event_id_counter = 0
 
 #显示模块代码
 display = mix_display.CircularTextDisplay(debug=1)
-def display_text(text):
+async def display_text(text):
+    start_time = time.ticks_ms() if hasattr(time, 'ticks_ms') else time.time() * 1000
     display.display_text(
-    text=text,
-    color=gc9a01.YELLOW,
-    bg_color=gc9a01.BLUE,
-    char_delay=0.005
+        text=text,
+        color=gc9a01.WRAP_V,
+        bg_color=gc9a01.WHITE,
+        char_delay=0.005
     )
+    end_time = time.ticks_ms() if hasattr(time, 'ticks_ms') else time.time() * 1000
+    print(f"Total display_text time: {end_time - start_time} ms")
+    print("Memory after display_text:")
 
 # --- 工具函数 ---
 def get_event_id():
@@ -158,7 +162,7 @@ def audio_recording_thread(ws_obj):
         return
 
     audio_buffer = bytearray(CHUNK)
-    MIN_VALID_SPEECH_DURATION_S = 0.1  # Minimum duration of speech (e.g., 400ms) to be considered valid
+    MIN_VALID_SPEECH_DURATION_S = 0.4  # Minimum duration of speech (e.g., 400ms) to be considered valid
     POST_SPEECH_SILENCE_THRESHOLD_S = 1.5 # Must be silent for this long after speech to commit
     SILENCE_THRESHOLD = 80  # 静音阈值 (需要根据实际环境调整)
 
@@ -255,7 +259,9 @@ def audio_recording_thread(ws_obj):
                                 gc.collect() # 内存清理
                             else:
                                 print(f"🎤 语音段过短 (仅 {actual_speech_duration:.2f}s), 未达到 {MIN_VALID_SPEECH_DURATION_S}s. 忽略并重置VAD.")
-                                had_voice = True # Reset VAD state, effectively ignoring the short utterance
+                                had_voice = False # Reset VAD state, effectively ignoring the short utterance
+                                current_speech_start_time = 0  # 新增：清除语音起始时间
+                                last_sound_time = current_time  # 新增：更新最后声音时间为当前
                         # If silence duration is less than POST_SPEECH_SILENCE_THRESHOLD_S, do nothing yet, continue accumulating silence.
             else: # bytes_read == 0
                 time.sleep(0.01)
@@ -504,8 +510,8 @@ async def handle_message(ws, data):
             final_text = data.get('transcript')
             print(f"✅ 文本响应完成: {final_text}")
             # 显示文本
-            display.clear_screen()
-            display_text(final_text)
+            #display.clear_screen()
+            asyncio.create_task(display_text(final_text))
             gc.collect()  # 文本响应完成后清理内存
 
         elif event_type == 'response.created':
