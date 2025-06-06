@@ -9,7 +9,7 @@
   
 # ESP32-S3 智能语音助手
 
-这是一个基于ESP32-S3开发板的智能语音助手项目，使用MicroPython实现与大语言模型进行语音对话的功能。该项目通过WebSocket连接到语音对话智能体API，实现实时语音输入和输出的交互体验。
+这是一个基于ESP32-S3Supermini开发板的智能语音助手项目，使用MicroPython实现与大语言模型进行语音对话的功能。该项目通过WebSocket连接到语音对话智能体API，实现实时语音输入和输出的交互体验。
 
 ## 功能特点
 
@@ -30,23 +30,31 @@
 ## 引脚配置
 
 ### 麦克风I2S配置
-- SCK: GPIO9
-- WS: GPIO8
-- SD: GPIO7
-
-### 扬声器I2S配置
 - SCK: GPIO11
 - WS: GPIO12
-- SD: GPIO10
+- SD: GPIO13
+
+### 扬声器I2S配置
+- SCK: GPIO7
+- WS: GPIO8
+- SD: GPIO9
+
+### gc9a01显示屏配置
+- BLK: GPIO1
+- CS: GPIO2
+- DC: GPIO3
+- RES: GPIO4
+- SDA: GPIO5
+- SCL: GPIO6
 
 ## 软件依赖
 
-- MicroPython固件 (适用于ESP32-S3)
+- MicroPython固件 (适用于ESP32-S3-4M)，下载位置在本项目中
 - 自定义aiohttp库 (已包含在项目中)
 
 ## 使用方法
 
-1. 将MicroPython固件烧录到ESP32-S3开发板
+1. 将MicroPython固件烧录到ESP32-S3Supermini开发板
 2. 修改`config.py`文件中的WiFi凭据和API密钥
    ```python
    WIFI_SSID = "你的WiFi名称"
