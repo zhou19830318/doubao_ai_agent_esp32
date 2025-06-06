@@ -255,7 +255,7 @@ def audio_recording_thread(ws_obj):
                                 gc.collect() # 内存清理
                             else:
                                 print(f"🎤 语音段过短 (仅 {actual_speech_duration:.2f}s), 未达到 {MIN_VALID_SPEECH_DURATION_S}s. 忽略并重置VAD.")
-                                had_voice = False # Reset VAD state, effectively ignoring the short utterance
+                                had_voice = True # Reset VAD state, effectively ignoring the short utterance
                         # If silence duration is less than POST_SPEECH_SILENCE_THRESHOLD_S, do nothing yet, continue accumulating silence.
             else: # bytes_read == 0
                 time.sleep(0.01)
