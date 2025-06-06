@@ -1,5 +1,5 @@
 # 演示效果
-![豆包英文老师校色演示](视频链接)
+![豆包英文老师校色演示](https://github.com/zhou19830318/doubao_ai_agent_esp32/blob/main/db025aaab6f59258f7ebf01e7ddf62ab.mp4)
 # 更新日志：
 ## 2025年6月6日
   - 增加了gc9a01的支持，支持中、英文显示
