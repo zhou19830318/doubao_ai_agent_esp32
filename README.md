@@ -1,7 +1,9 @@
 # 更新日志：
-- 2025年6月6日，增加了gc9a01的支持，支持中、英文显示
-- 2025年6月6日，micropython固件更新为esp32s3-4M（增加了gc9a01模块）
-- 增加inconsolata_16.py（英文字体模块）、proverbs_20.py（中文字体模块）、tft_config.py（gc9a01显示屏配置文件）
+## 2025年6月6日
+  - 增加了gc9a01的支持，支持中、英文显示
+  - micropython固件更新为esp32s3-4M（增加了gc9a01模块）
+  - 增加inconsolata_16.py（英文字体模块）、proverbs_20.py（中文字体模块）、tft_config.py（gc9a01显示屏配置文件）
+  - 增加了显示效果的演示视频
   
 # ESP32-S3 智能语音助手
 
