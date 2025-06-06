@@ -8,7 +8,7 @@ COLORS = 2
 BITMAPS = 96
 MAP = " !\"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\\]^_`abcdefghijklmnopqrstuvwxyz{|}~"
 BPP = 1
-PALETTE = [0xFFFF, 0x1F00]
+PALETTE = [0x0000, 0xFFFF]
 _BITMAP = (
     b"\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff"
     b"\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff\xff"
@@ -204,3 +204,4 @@ _BITMAP = (
 )
 
 BITMAP = memoryview(_BITMAP)
+
