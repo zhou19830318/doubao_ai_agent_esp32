@@ -78,7 +78,10 @@
 <div align="center">
   <img src="https://github.com/zhou19830318/doubao_ai_agent_esp32/blob/main/3.png">
 </div>
-   
+</div>
+<div align="center">
+  <img src="https://github.com/zhou19830318/doubao_ai_agent_esp32/blob/main/4.jpg">
+</div>
 
 ## 配置说明
 
