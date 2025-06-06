@@ -2,6 +2,7 @@
 <div align="center">
   <img src="https://github.com/zhou19830318/doubao_ai_agent_esp32/blob/main/ezgif-2649f8a19783ea.gif">
 </div>
+
 # 更新日志：
 ## 2025年6月6日
   - 增加了gc9a01的支持，支持中、英文显示
