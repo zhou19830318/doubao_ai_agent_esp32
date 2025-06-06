@@ -6,6 +6,7 @@ import inconsolata_16 as english_font
 import math
 import gc
 import micropython
+import time
 
 class CircularTextDisplay:
     def __init__(self, tft=None, debug=0):
@@ -39,7 +40,7 @@ class CircularTextDisplay:
         # Colors and timing
         self.text_color = gc9a01.WHITE
         self.bg_color = gc9a01.BLUE
-        self.char_delay = 0.005  # Reduced from 0.01 to 0.005 seconds
+        self.char_delay = 0.001  # Reduced from 0.01 to 0.005 seconds
         
         # Cache for line bounds
         self._bounds_cache = {}
@@ -257,19 +258,28 @@ class CircularTextDisplay:
             print(f"Clear screen time: {utime.ticks_diff(utime.ticks_ms(), start_time)} ms")
             print("Memory after clear_screen:")
             micropython.mem_info()
-'''
+
 if __name__ == "__main__":
     try:
         display = CircularTextDisplay(debug=1)
-        test_text = """这是一个由虾哥开源的ESP32项目，以MIT许可证发布，允许任何人免费使用，或用于商业用途。We hope this project helps you understand AI hardware development and apply large language models to real devices. 如果你有任何想法或建议，请随时提出Issues或加入QQ群：575180511"""
-        display.display_text(
-            text=test_text,
-            color=gc9a01.YELLOW,
-            bg_color=gc9a01.BLUE,
-            char_delay=0.005
-        )
-        display.clear_screen()
+        test_text1 = """这是一个由虾哥开源的ESP32项目，以MIT许可证发布，允许任何人免费使用，或用于商业用途。We hope this project helps you understand AI hardware development and apply large language models to real devices. 如果你有任何想法或建议，请随时提出Issues或加入QQ群：575180511"""
+        test_text2 = "测试完成，very good!"
+        test_text3 = "谢谢使用！"
+        def print_text(text):
+            display.display_text(
+                text=text,
+                color=gc9a01.WRAP_V,
+                bg_color=gc9a01.WHITE,
+                char_delay=0.001
+            )
+        print_text(test_text1)
+        time.sleep(1)
+        print_text(test_text2)
+        time.sleep(1)
+        print_text(test_text3)
+
+        #display.clear_screen()
         print("Test completed")
     except Exception as e:
         print(f"Test failed: {e}")
-'''
+
