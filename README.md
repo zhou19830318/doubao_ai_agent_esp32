@@ -59,7 +59,7 @@
    ```python
    WIFI_SSID = "你的WiFi名称"
    WIFI_PASSWORD = "你的WiFi密码"
-   API_KEY = "你的API密钥"
+   API_KEY = "你的API密钥"，豆包边缘网关提供200万免费试用token
    instructions = '''你的提示词'''
    ```
 3. 上传项目文件到ESP32-S3
