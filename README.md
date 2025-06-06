@@ -96,11 +96,17 @@
 
 ## 项目结构
 
-- `main_ai.py`: 主程序入口，负责WiFi连接和启动聊天客户端
-- `doubao_chat.py`: 实现WebSocket客户端和音频处理的核心代码
-- `config.py`: 配置参数和API密钥
-- `boot.py`: MicroPython启动脚本
-- `aiohttp/`: 包含WebSocket客户端实现的自定义库
+README.md：项目说明文档
+boot.py：启动脚本
+config.py：配置参数（如WiFi等）
+doubao_chat.py：核心聊天功能模块
+main_ai.py：主程序入口（连接WiFi，启动聊天）
+mix_display.py：gc9a01显示相关代码
+tft_config.py：TFT 屏配置
+inconsolata_16.py、proverbs_20.py：中英文字体/数据相关
+aiohttp/：第三方库目录（aiohttp相关，websocket模块）
+micropython固件/：esp32s3Supermini固件
+1.png、2.png、3.png、4.jpg、ezgif-257beaf8d11884.gif、db025aaab6f59258f7ebf01e7ddf62ab.mp4：图片和演示文件
 
 ## 开发者说明
 
