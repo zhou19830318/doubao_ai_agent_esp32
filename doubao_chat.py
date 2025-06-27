@@ -22,15 +22,21 @@ from aiohttp import ClientSession, WSMsgType
 
 # --- 全局变量 ---
 audio_in = None         # I2S麦克风实例
-audio_out = None        # I2S扬声器实例
+audio_out = None        # I2S扬声器实例 (now managed by playback thread)
 audio_recording = False # 是否正在录音
-audio_playing = False   # 是否正在播放音频
+audio_playing = False   # 是否正在播放音频 (now primarily managed by playback thread)
 session_configured = False # WebSocket会话是否已配置
 message_queue = None    # 消息发送队列 (deque)
 message_queue_lock = None # 消息队列锁
 audio_ws = None         # WebSocket 客户端实例 (供录音线程使用)
 waiting_for_response_creation = False  # 是否正在等待response.created事件
 waiting_start_time = 0  # 开始等待response.created的时间戳
+
+# Audio Playback Thread Globals
+playback_queue = None
+playback_queue_lock = None
+playback_finished_event = None # asyncio.Event for signaling playback completion
+main_event_loop = None # To schedule event set from thread
 
 # 事件ID计数器
 event_id_counter = 0
@@ -39,7 +45,7 @@ event_id_counter = 0
 display = mix_display.CircularTextDisplay(debug=1)
 async def display_text(text):
     start_time = time.ticks_ms() if hasattr(time, 'ticks_ms') else time.time() * 1000
-    display.display_text(
+    await display.display_text( # await the async display_text
         text=text,
         color=gc9a01.WRAP_V,
         bg_color=gc9a01.WHITE,
@@ -48,6 +54,139 @@ async def display_text(text):
     end_time = time.ticks_ms() if hasattr(time, 'ticks_ms') else time.time() * 1000
     print(f"Total display_text time: {end_time - start_time} ms")
     print("Memory after display_text:")
+
+# --- Audio Playback Thread ---
+def add_to_playback_queue(audio_b64_chunk):
+    """Adds an audio chunk to the playback queue."""
+    global playback_queue, playback_queue_lock
+    if playback_queue is None or playback_queue_lock is None:
+        print("❌ Playback queue not initialized")
+        return
+    with playback_queue_lock:
+        playback_queue.append(audio_b64_chunk)
+        # Optional: If queue gets very large, consider logging or dropping oldest
+        # For now, assume consumer is fast enough or server sends manageable chunks.
+
+def audio_playback_thread_func():
+    """Dedicated thread for playing audio from a queue."""
+    global audio_out, audio_playing, playback_queue, playback_queue_lock, main_event_loop, playback_finished_event
+
+    print("🔊 Playback thread started")
+    playback_cycle_count = 0
+
+    while True:
+        chunk_to_play_b64 = None
+        queue_was_empty = False
+        with playback_queue_lock:
+            if len(playback_queue) > 0:
+                chunk_to_play_b64 = playback_queue.popleft()
+            else:
+                queue_was_empty = True
+
+        if chunk_to_play_b64:
+            if not audio_playing: # Should be set by main thread when audio.delta starts
+                # This is a fallback, ideally audio_playing is True when chunks arrive
+                print("🔊 Playback thread: audio_playing was False, setting True.")
+                audio_playing = True
+
+            if audio_out is None:
+                print("🔊 Playback: Speaker not initialized, attempting init...")
+                audio_out = init_i2s_speaker() # Uses the existing global init function
+                if audio_out is None:
+                    print("❌ Playback: Speaker init failed. Skipping chunk.")
+                    # Consider how to handle this - maybe drop all queued audio?
+                    # For now, just drop this chunk and try next.
+                    audio_playing = False # Can't play
+                    if main_event_loop and playback_finished_event:
+                        main_event_loop.call_soon_threadsafe(playback_finished_event.set)
+                    continue
+
+            try:
+                audio_bytes = ubinascii.a2b_base64(chunk_to_play_b64)
+                if audio_bytes:
+                    # Using the robust writing logic from the original play_audio_data
+                    bytes_written_total = 0
+                    total_bytes_to_write = len(audio_bytes)
+                    offset = 0
+                    playback_chunk_size = 4096 # Can be tuned
+
+                    while offset < total_bytes_to_write:
+                        current_playback_chunk = audio_bytes[offset:offset+playback_chunk_size]
+                        try:
+                            bytes_written_this_op = audio_out.write(current_playback_chunk)
+                            if bytes_written_this_op <= 0:
+                                print(f"⚠️ Playback write returned {bytes_written_this_op}. Small delay.")
+                                time.sleep(0.01) # Brief pause before retrying or continuing
+                                # Depending on hardware, might need to skip this chunk or re-init I2S
+                                # For now, we assume it might recover or next chunk is fine.
+                                # If it's consistently 0 or negative, I2S might be stuck.
+                                break # Break from inner write loop for this audio_bytes
+
+                            bytes_written_total += bytes_written_this_op
+                            offset += bytes_written_this_op
+
+                            if bytes_written_this_op < len(current_playback_chunk):
+                                print(f"⚠️ Playback partial write: {bytes_written_this_op}/{len(current_playback_chunk)}")
+                                time.sleep(0.01) # Allow buffer to clear a bit
+
+                        except Exception as write_err:
+                            print(f"❌ Playback I2S write error: {write_err}")
+                            sys.print_exception(write_err)
+                            # Attempt to deinit and reinit audio_out to recover
+                            if audio_out:
+                                try: audio_out.deinit()
+                                except: pass
+                                audio_out = None
+                                print("🔊 Playback: Deinitialized speaker due to write error.")
+                            audio_playing = False # Stop playback state
+                            if main_event_loop and playback_finished_event:
+                                 main_event_loop.call_soon_threadsafe(playback_finished_event.set)
+                            break # Break from inner write loop
+
+                    if offset < total_bytes_to_write: # If inner loop was broken
+                        print(f"⚠️ Playback: Failed to write all bytes for current chunk ({bytes_written_total}/{total_bytes_to_write})")
+
+                else: # audio_bytes is empty after decode
+                    print("🔊 Playback: Decoded to empty audio bytes, skipping.")
+            except ValueError as ve: # Base64 decode error
+                print(f"❌ Playback: Base64 decode error: {ve}")
+                print(f"Data preview: '{chunk_to_play_b64[:50]}...' (len: {len(chunk_to_play_b64)})")
+                # Don't set audio_playing to False here, just skip this corrupted chunk.
+            except Exception as e:
+                print(f"❌ Playback thread error during processing: {e}")
+                sys.print_exception(e)
+                if audio_out: # Defensive deinit on unknown error
+                    try: audio_out.deinit()
+                    except: pass
+                    audio_out = None
+                audio_playing = False # Stop playback state
+                if main_event_loop and playback_finished_event:
+                     main_event_loop.call_soon_threadsafe(playback_finished_event.set)
+
+        else: # No chunk_to_play_b64 (queue was empty)
+            if audio_playing: # If it was playing, and now queue is empty, it means playback segment finished
+                print("🔊 Playback queue empty, playback segment finished.")
+                audio_playing = False
+                if main_event_loop and playback_finished_event:
+                    main_event_loop.call_soon_threadsafe(playback_finished_event.set)
+
+            time.sleep(0.01) # Sleep briefly when queue is empty
+
+        playback_cycle_count +=1
+        if playback_cycle_count >= 500: # Approx every 5 seconds if sleeping 0.01s
+            gc.collect()
+            playback_cycle_count = 0
+
+    # Cleanup if thread were to exit (which it doesn't in this design)
+    print("🔊 Playback thread exiting...")
+    if audio_out:
+        try:
+            audio_out.deinit()
+            print("🔊 Playback: Speaker I2S closed on thread exit.")
+        except Exception as e:
+            print(f"❌ Error closing speaker I2S on playback thread exit: {e}")
+        audio_out = None
+    gc.collect()
 
 # --- 工具函数 ---
 def get_event_id():
@@ -104,9 +243,9 @@ def add_to_message_queue(message):
         return
     with message_queue_lock:
         message_queue.append(message)
-        # 如果队列长度超过阈值，触发垃圾回收
-        if len(message_queue) % 50 == 0:
-            gc.collect()
+        # Removed periodic gc.collect() from here; rely on other strategic GCs.
+        # if len(message_queue) % 50 == 0:
+        #     gc.collect()
 
 # ... 其他代码保持不变 ...
 
@@ -126,9 +265,9 @@ async def process_message_queue(ws):
             try:
                 await ws.send_json(message)
                 message_count += 1
-                # 每处理100条消息执行一次垃圾回收
-                if message_count % 100 == 0:
-                    gc.collect()
+                # Removed periodic gc.collect() from here.
+                # if message_count % 100 == 0:
+                #     gc.collect()
             except Exception as e:
                 print(f"❌ 发送消息时出错 ({message.get('type', '未知类型')}): {e}")
                 sys.print_exception(e)
@@ -289,102 +428,10 @@ def audio_recording_thread(ws_obj):
             print(f"关闭麦克风I2S时出错: {e}")
     gc.collect()  # 线程结束时清理内存
 
-# --- 音频播放 ---
-def play_audio_data(audio_data_base64):
-    """解码并播放base64编码的音频数据"""
-    global audio_out, audio_playing
-
-    if audio_out is None:
-        print("播放时发现扬声器未初始化，尝试初始化...")
-        audio_out = init_i2s_speaker()
-        if audio_out is None:
-            print("❌ 无法播放音频，扬声器I2S初始化失败")
-            return False
-        print("扬声器重新初始化成功")
-
-    try:
-        # 检查输入数据的有效性
-        if not audio_data_base64 or len(audio_data_base64) == 0:
-            print("收到空音频数据块，跳过播放")
-            return True
-            
-        # 打印音频数据大小
-        base64_len = len(audio_data_base64)
-        if base64_len > 1000:  # 只打印大型音频数据的大小
-            print(f"收到音频数据: {base64_len} 字节 (Base64编码)")
-        
-        # 解码 Base64 数据为二进制
-        try:
-            audio_bytes = ubinascii.a2b_base64(audio_data_base64)
-        except ValueError as e:
-            print(f"❌ Base64 解码失败: {e}")
-            print(f"数据预览: '{audio_data_base64[:50]}...' (长度: {len(audio_data_base64)})")
-            gc.collect()  # 解码失败后清理内存
-            return False
-            
-        bin_len = len(audio_bytes)
-        if bin_len > 1000:  # 只打印大型音频数据的大小
-            print(f"解码后音频数据: {bin_len} 字节 (二进制)")
-            
-        if bin_len == 0:
-            print("Base64 解码后得到空数据，跳过播放")
-            return True
-            
-        # 写入音频数据到扬声器
-        chunk_size = 4096  # 使用分块写入以避免可能的缓冲区限制
-        bytes_written = 0
-        total_bytes = len(audio_bytes)
-        offset = 0
-        
-        while offset < total_bytes:
-            chunk = audio_bytes[offset:offset+chunk_size]
-            try:
-                bytes_chunk = audio_out.write(chunk)
-                if bytes_chunk <= 0:
-                    print(f"⚠️ 播放器写入返回 {bytes_chunk}，可能需要丢弃此块")
-                    # 尝试短暂等待后继续
-                    time.sleep(0.01)
-                    continue
-                    
-                bytes_written += bytes_chunk
-                offset += bytes_chunk
-                
-                # 如果写入的字节数少于请求的字节数，可能需要等待一下
-                if bytes_chunk < len(chunk):
-                    print(f"⚠️ 部分写入: {bytes_chunk}/{len(chunk)} 字节")
-                    time.sleep(0.01)  # 短暂等待让扬声器缓冲区清空一些
-                
-            except Exception as write_err:
-                print(f"❌ 写入音频数据失败: {write_err}")
-                sys.print_exception(write_err)
-                # 尝试继续写入剩余数据
-                offset += len(chunk)  # 跳过当前块
-        
-        # 检查是否全部写入
-        if bytes_written < total_bytes:
-            print(f"⚠️ 未能完全写入音频数据: 写入 {bytes_written}/{total_bytes} 字节")
-            # 即使没有完全写入，也认为是部分成功
-            return True if bytes_written > 0 else False
-            
-        return True
-        
-    except Exception as e:
-        print(f"❌ 音频解码或播放失败: {e}")
-        sys.print_exception(e)
-        if audio_out:
-            try:
-                audio_out.deinit()
-                print("扬声器反初始化完成")
-            except Exception as deinit_e:
-                print(f"❌ 反初始化扬声器时出错: {deinit_e}")
-            audio_out = None
-        gc.collect()  # 异常后清理内存
-        return False
-
 # --- WebSocket 消息处理 ---
 async def handle_message(ws, data):
     """处理接收到的服务端消息"""
-    global audio_recording, audio_playing, session_configured, waiting_for_response_creation
+    global audio_recording, audio_playing, session_configured, waiting_for_response_creation, playback_finished_event
 
     try:
         if not isinstance(data, dict):
@@ -438,37 +485,43 @@ async def handle_message(ws, data):
         elif event_type == 'response.audio.delta':
             audio_delta = data.get('delta')
             if audio_delta:
-                if not audio_playing:
-                    print("🔊 检测到音频流开始，设置 audio_playing = True, audio_recording = False")
-                    audio_recording = False
-                    audio_playing = True
-                if not play_audio_data(audio_delta):
-                    print("❌ 处理 'response.audio.delta' 时播放音频数据失败。")
-                    return False # Indicate that this message could not be successfully processed
+                if not audio_playing: # This flag is now mainly set by playback_thread, but good to set here too
+                    print("🔊 主循环检测到音频流开始，暂停录音，标记播放开始")
+                    audio_recording = False # Stop recording
+                    audio_playing = True    # Indicate playback is active
+                    playback_finished_event.clear() # Clear event for this new audio stream
+                add_to_playback_queue(audio_delta)
             else:
                 print("⚠️ 收到空的 response.audio.delta")
 
         elif event_type == 'response.audio.done':
-            print("✅ 音频片段播放完成 (response.audio.done)")
-            gc.collect()  # 音频播放完成后清理内存
+            print("✅ 服务端指示音频片段发送完成 (response.audio.done)")
+            # The playback thread will set audio_playing to False and set playback_finished_event
+            # when the queue is empty. No direct action here other than logging.
+            # gc.collect() # Maybe defer this until response.done
 
         elif event_type == 'response.done':
             print("✅✅✅ 服务端响应完成 (response.done)")
 
-            # Add a small delay before re-enabling recording.
-            # This is a speculative attempt to give the server a moment if it's sensitive
-            # to immediate re-engagement after a response.done.
-            await asyncio.sleep(0.5)  # 增加到0.5秒，给服务器更多缓冲时间
+            # Wait for the playback thread to finish all queued audio
+            if audio_playing: # Check if we even expect audio
+                 print("⏳ 等待音频播放完成...")
+                 try:
+                    await asyncio.wait_for(playback_finished_event.wait(), timeout=10.0) # Wait with timeout
+                    print("✅ 音频播放线程已完成。")
+                 except asyncio.TimeoutError:
+                    print("⚠️ 等待音频播放完成超时。可能音频仍在播放或事件未正确发出。")
+                 playback_finished_event.clear() # Reset for next response
 
-            if audio_playing:
-                audio_playing = False
-                audio_recording = True
-                print("响应完成，设置 audio_playing = False, audio_recording = True")
-            else:
-                # This branch handles cases where response.done might arrive without prior audio_delta
-                if not audio_recording: # Only set to true if it was false
+            # audio_playing should now be False if playback completed successfully and event was set.
+            # Re-check audio_playing as a safeguard, as timeout above might mean it's still true.
+            if not audio_playing:
+                if not audio_recording:
                     audio_recording = True
-                    print("响应完成 (无音频播放)，设置 audio_recording = True")
+                    print("响应完成且音频已结束，恢复录音。 audio_recording = True")
+            else:
+                print("⚠️ response.done 但 audio_playing 仍为 True。录音未恢复。")
+
             gc.collect()  # 响应完成后清理内存
 
         elif event_type == 'conversation.item.input_audio_transcription.completed':
@@ -547,17 +600,35 @@ async def chat_client():
     global audio_recording, audio_playing, message_queue, message_queue_lock
     global audio_in, audio_out, session_configured, audio_ws, waiting_for_response_creation
     global waiting_start_time
+    global playback_queue, playback_queue_lock, playback_finished_event, main_event_loop
 
     print("启动 chat_client")
+    main_event_loop = asyncio.get_event_loop() # Get main event loop for thread communication
     
     # 启动时执行垃圾回收
     gc.collect()
     print(f"初始可用内存: {gc.mem_free()} 字节")
 
     # 初始化消息队列和锁
-    message_queue = deque([], 1024)
+    message_queue = deque([], 1024) # For outgoing WS messages
     message_queue_lock = _thread.allocate_lock()
     print("消息队列和锁初始化完成")
+
+    # Initialize playback queue, lock, and event
+    global playback_queue, playback_queue_lock, playback_finished_event
+    playback_queue = deque([], 256) # Max 256 audio chunks for playback
+    playback_queue_lock = _thread.allocate_lock()
+    playback_finished_event = asyncio.Event()
+    print("Playback queue, lock, and event initialized.")
+
+    # Start the audio playback thread
+    try:
+        _thread.start_new_thread(audio_playback_thread_func, ())
+        print("✅ 已启动音频播放线程")
+    except Exception as e:
+        print(f"❌ 启动音频播放线程失败: {e}")
+        # Decide if this is fatal or if the app can run without playback.
+        # For now, let's assume it's not immediately fatal but will log error.
     
     # 主连接循环，允许断线重连
     connection_attempts = 0
@@ -598,12 +669,12 @@ async def chat_client():
                     
                     while keep_running:
                         try:
-                            # 周期性执行垃圾回收
-                            loop_count += 1
-                            if loop_count >= 100:  # 每100次循环执行一次垃圾回收
-                                gc.collect()
-                                loop_count = 0
-                                print(f"当前可用内存: {gc.mem_free()} 字节")
+                            # Periodic GC in main loop removed. Rely on event-driven GC or less frequent time-based.
+                            # loop_count += 1
+                            # if loop_count >= 100:
+                            #     gc.collect()
+                            #     loop_count = 0
+                            #     print(f"当前可用内存: {gc.mem_free()} 字节")
                                 
                                 # 检查是否在等待response.created但长时间未收到
                                 if waiting_for_response_creation:
@@ -718,14 +789,28 @@ async def chat_client():
                             print("麦克风 I2S 已关闭")
                         except Exception as e:
                             print(f"❌ 关闭麦克风I2S时出错: {e}")
-                    if audio_out:
+
+                    # audio_out is managed by the playback thread, so we don't deinit it here directly.
+                    # The playback thread should handle its own cleanup if it were designed to exit,
+                    # or ensure audio_out is None if the thread is stopped/restarted.
+                    # For a continuously running playback thread, direct deinit here might conflict.
+                    # However, if chat_client is exiting, we might want to signal the playback thread
+                    # to stop and clean up. For now, we'll assume the playback thread handles audio_out.
+                    # If audio_out is still globally referenced for init_i2s_speaker,
+                    # it might be set to None to allow re-init on next connection.
+                    global audio_out # Ensure we are referencing the global one
+                    if audio_out: # If it was ever initialized by playback thread and not cleaned up
+                        print("正在关闭扬声器 I2S (从主清理)...")
                         try:
-                            print("正在关闭扬声器 I2S...")
-                            audio_out.deinit()
-                            audio_out = None
-                            print("扬声器 I2S 已关闭")
+                            # This is a bit risky if playback thread is still using it.
+                            # A proper shutdown would involve signaling playback thread.
+                            # For simplicity now, if it exists, try to deinit.
+                            # audio_out.deinit() # This might be problematic if playback thread is active
+                            # audio_out = None # Let playback thread re-create if needed
+                            print("扬声器 I2S deinit skipped in main cleanup to avoid conflict with playback thread.")
                         except Exception as e:
-                            print(f"❌ 关闭扬声器I2S时出错: {e}")
+                            print(f"❌ 关闭扬声器I2S时出错 (从主清理): {e}")
+
 
                     gc.collect()  # 清理完成后执行最终垃圾回收
                     print(f"清理后可用内存: {gc.mem_free()} 字节")

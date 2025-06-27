@@ -1,6 +1,7 @@
 import gc9a01
 import tft_config
 import utime
+import uasyncio # Added for asynchronous operations
 import proverbs_20 as default_font
 import inconsolata_16 as english_font
 import math
@@ -188,7 +189,7 @@ class CircularTextDisplay:
         self.bg_color = bg_color or self.bg_color
         self.char_delay = char_delay if char_delay is not None else self.char_delay
         
-        self.tft.fill(self.bg_color)
+        self.tft.fill(self.bg_color) # Initial fill
         self.current_line = 0
         self.current_y = 20
         self.current_x = self._get_line_bounds(self.current_y)[0]
@@ -202,7 +203,7 @@ class CircularTextDisplay:
         for char in text:
             if char == '\n':
                 if line_buffer:
-                    self._render_line(line_buffer, line_width)
+                    await self._render_line(line_buffer, line_width) # await here
                     line_buffer.clear()
                     line_width = 0
                 self._new_line()
@@ -216,7 +217,7 @@ class CircularTextDisplay:
             
             if self.current_x + line_width + char_width > x_max or not self._is_within_circle(self.current_x + line_width, self.current_y, char_width):
                 if line_buffer:
-                    self._render_line(line_buffer, line_width)
+                    await self._render_line(line_buffer, line_width) # await here
                     line_buffer.clear()
                     line_width = 0
                 self._new_line()
@@ -227,7 +228,7 @@ class CircularTextDisplay:
         
         # Render any remaining characters
         if line_buffer:
-            self._render_line(line_buffer, line_width)
+            await self._render_line(line_buffer, line_width) # await here
         
         gc.collect()
         if self.debug >= 1:
@@ -235,15 +236,70 @@ class CircularTextDisplay:
             print("Memory after display_text:")
             micropython.mem_info()
 
-    def _render_line(self, line_buffer, line_width):
+    async def _render_line(self, line_buffer, line_width): # async def
         """Render a line of characters with a single delay."""
         start_time = utime.ticks_ms() if self.debug >= 2 else 0
         for char in line_buffer:
-            self._print_char(char)
-        if self.char_delay > 0:
-            utime.sleep(self.char_delay * len(line_buffer))
+            self._print_char(char) # This remains synchronous
+        if self.char_delay > 0 and len(line_buffer) > 0: # Check len > 0
+            await uasyncio.sleep(self.char_delay * len(line_buffer)) # await uasyncio.sleep
         if self.debug >= 2:
             print(f"Line render time for {len(line_buffer)} chars: {utime.ticks_diff(utime.ticks_ms(), start_time)} ms")
+
+    async def display_text(self, text, color=None, bg_color=None, char_delay=None): # async def
+        """Display text character by character or in batches."""
+        start_time = utime.ticks_ms()
+
+        self.text_color = color or self.text_color
+        self.bg_color = bg_color or self.bg_color
+        self.char_delay = char_delay if char_delay is not None else self.char_delay
+
+        self.tft.fill(self.bg_color) # Initial fill
+        self.current_line = 0
+        self.current_y = 20
+        self.current_x = self._get_line_bounds(self.current_y)[0]
+        self._bounds_cache.clear()
+
+        # Batch rendering: process one line at a time
+        line_buffer = []
+        line_width = 0
+        x_min, x_max = self._get_line_bounds(self.current_y)
+
+        for char in text:
+            if char == '\n':
+                if line_buffer:
+                    await self._render_line(line_buffer, line_width) # await here
+                    line_buffer.clear()
+                    line_width = 0
+                self._new_line()
+                x_min, x_max = self._get_line_bounds(self.current_y)
+                continue
+
+            is_chinese = self._is_chinese_or_punctuation(char)
+            char_width = self.chinese_char_width if is_chinese else self.english_char_width
+            if is_chinese and self.has_write_len:
+                char_width = self.tft.write_len(self.chinese_font, char) or char_width
+
+            if self.current_x + line_width + char_width > x_max or not self._is_within_circle(self.current_x + line_width, self.current_y, char_width):
+                if line_buffer:
+                    await self._render_line(line_buffer, line_width) # await here
+                    line_buffer.clear()
+                    line_width = 0
+                self._new_line()
+                x_min, x_max = self._get_line_bounds(self.current_y)
+
+            line_buffer.append(char)
+            line_width += char_width
+
+        # Render any remaining characters
+        if line_buffer:
+            await self._render_line(line_buffer, line_width) # await here
+
+        gc.collect()
+        if self.debug >= 1:
+            print(f"Total display_text time: {utime.ticks_diff(utime.ticks_ms(), start_time)} ms")
+            print("Memory after display_text:")
+            micropython.mem_info()
 
     def clear_screen(self):
         """Clear the screen and reset state."""
