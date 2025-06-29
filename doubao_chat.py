@@ -768,7 +768,7 @@ async def chat_client():
             await asyncio.sleep(5)  # 异常情况下等待更长时间再重连
             
             # 在chat_client函数中增加错误检测
-            if handle_message返回False或抛出异常:
+            if handle_message(ws, data):
                 print("检测到WebSocket连接问题，准备重新连接...")
                 # 通过设置keep_running=False触发重连
                 keep_running = False
