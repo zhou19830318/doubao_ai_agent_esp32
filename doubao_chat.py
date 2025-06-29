@@ -539,6 +539,7 @@ async def handle_message(ws, data):
         print(f"❌ 处理消息时发生异常: {e}")
         sys.print_exception(e)
         gc.collect()  # 异常后清理内存
+        return False
 
     return True
 
